@@ -101,7 +101,7 @@ def main():
         print(f'Mode: {args.mode} | Timeout: {args.timeout}s | Output: {"ENABLED" if args.enable_output else "DRY RUN"}')
         print('Commands: '+', '.join(commands))
         log(f'Waiting for {wake_word}... Press Ctrl+C to stop.')
-        with sd.RawInputStream(device=args.device,samplerate=engine.sample_rate,blocksize=engine.frame_length,channels=1,dtype='int16',callback=callback,latency='default' if args.mode=='normal' else 'low'):
+        with sd.RawInputStream(device=args.device,samplerate=engine.sample_rate,blocksize=engine.frame_length,channels=1,dtype='int16',callback=callback,latency=None if args.mode=='normal' else 'low'):
             while True:
                 try:
                     frame,captured = audio.get(timeout=.1)
