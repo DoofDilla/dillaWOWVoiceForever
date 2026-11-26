@@ -32,7 +32,7 @@ python -m pip install -r requirements-gui.txt
 python main.py --gui
 ```
 
-The GUI and console share the same recognition engine. The GUI provides a dashboard, command/sequence editor, recognition and audio settings, live log, and a system tray where supported. Save settings and restart the engine to apply changes. Keyboard output is opt-in per session. GUI settings take precedence over CLI recognition overrides when starting from the dashboard. The existing console commands remain available without Qt. Linux GUI and Steam Deck remain experimental.
+The GUI and console share the same recognition engine. The GUI provides a dashboard, command/sequence editor, recognition and audio settings, live log, and a system tray where supported. Save settings and restart the engine to apply changes. Keyboard output is saved in output.enabled and shared with the console. GUI settings take precedence over CLI recognition overrides when starting from the dashboard. The existing console commands remain available without Qt. Linux GUI and Steam Deck remain experimental.
 
 ## Features
 
@@ -42,7 +42,7 @@ The GUI and console share the same recognition engine. The GUI provides a dashbo
 - **Three recognition modes:** normal, low latency and fast.
 - **Custom keybindings:** individual keys, modifier combinations, aliases, hold times and generic timed sequences.
 - **Native input backends:** Windows SendInput and experimental Linux evdev/uinput.
-- **Dry run by default:** experiment with recognition before sending any input.
+- **Dry run by default for new configurations:** experiment with recognition before sending any input.
 - **Local audio processing:** no audio recordings saved by the application; internet access is needed for dependency installation and the initial model download.
 
 > **Game use:** Prefer one deliberately spoken command mapped to one in-game keybind. Use WoW's own supported macro system where appropriate. External timed multi-action sequences can violate game automation rules. This project does not imply Blizzard approval.
@@ -62,7 +62,7 @@ python main.py --mode fast
 
 The first start downloads the English Vosk model (approximately 40 MB) into `models/vosk-model-small-en-us-0.15/`. Subsequent launches reuse it.
 
-Say **“Jarvis open map”** in one natural phrase. A successful recognition prints a match and, unless disabled, plays a short success tone. No keys are sent in this initial test.
+Say **“Jarvis open map”** in one natural phrase. A successful recognition prints a match and, unless disabled, plays a short success tone. No keys are sent in this initial test with a fresh configuration. Use `--dry-run` to force this behavior.
 
 Example console output (illustrative):
 
@@ -195,10 +195,11 @@ All fields below belong inside `recognition`.
 
 | Setting | Default | Description |
 | --- | --- | --- |
+| `enabled` | `false` | Persist keyboard output for both frontends. |
 | `foreground_title` | `"World of Warcraft"` | Windows window-title filter. A JSON `null` disables it. Linux output requires `null`, because a foreground filter is not implemented there. |
 | `default_hold_ms` | `50` | Default key/chord hold duration in milliseconds. |
 
-Output is enabled only by the command-line flag `--enable-output`. A recognition match or success tone does not guarantee that the foreground guard allowed input or that a game accepted it.
+Output is controlled by `output.enabled` (default false). The GUI saves this setting; console flags `--enable-output` and `--disable-output` / `--dry-run` override it for one run only. A recognition match or success tone does not guarantee that the foreground guard allowed input or that a game accepted it.
 
 ### Define a single key
 
@@ -310,7 +311,8 @@ CLI values override their corresponding config values for the current run only.
 | `--wake-beep` | Enable activation feedback, unless all beeps are disabled. |
 | `--no-beep` | Disable all feedback sounds. |
 | `--free` | Use unrestricted Vosk transcription; only exact configured matches dispatch. |
-| `--enable-output` | Enable native keyboard output; omitted means dry run. |
+| `--enable-output` | Enable native keyboard output for this run. |
+| `--disable-output`, `--dry-run` | Disable output for this run, regardless of saved config. |
 | `--model PATH` | Use a local Vosk model directory. If the path does not exist, the default English model is downloaded there. |
 
 ### Useful command lines

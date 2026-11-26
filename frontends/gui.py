@@ -5,7 +5,7 @@ from pathlib import Path
 from PySide6 import QtCore, QtGui, QtWidgets as W
 import sounddevice as sd
 import pvporcupine
-from core.config import registry
+from core.config import registry, output_enabled
 from core.engine import run_engine
 from core.audio import beep
 
@@ -225,7 +225,7 @@ class Window(W.QMainWindow):
         return {**self.config.get('audio',{}),'output_device':self.speaker.currentData(),'volume':self.volume.value(),**{k:v.text().strip() or None for k,v in self.sound_fields.items()}}
     def output_page(self):
         l=self.pages['Output'];f=W.QFormLayout();l.addLayout(f);o=self.config['output']
-        self.enabled=W.QCheckBox('Enable native keyboard output for this session');self.enabled.setChecked(self.args.enable_output);f.addRow(self.enabled)
+        self.enabled=W.QCheckBox('Enable native keyboard output');self.enabled.setChecked(output_enabled(self.config, self.args.enable_output));f.addRow(self.enabled)
         self.foreground=W.QLineEdit(o.get('foreground_title') or '');f.addRow('Windows foreground title',self.foreground)
         self.hold=spin(0,10000,o.get('default_hold_ms',50));f.addRow('Default hold (ms)',self.hold)
         warning=label('Dry run is recommended for testing. Linux requires an empty foreground title and does not provide focus protection. Use one game keybind per spoken command.','muted');warning.setWordWrap(True);l.addWidget(warning);l.addStretch()
@@ -242,7 +242,7 @@ class Window(W.QMainWindow):
         try:
             c=copy.deepcopy(self.config);c.update(wake_word=self.word.currentText(),sensitivity=self.sensitivity.value(),device=self.mic.currentData(),beep=self.sound.isChecked(),wake_beep=self.wake_sound_on.isChecked(),audio=self.audio_settings())
             c['recognition'].update(mode=self.mode.currentText(),timeout=self.timeout.value(),silence_ms=self.silence.value(),stable_ms=self.stable.value(),pre_roll_ms=self.preroll.value())
-            c['output'].update(foreground_title=self.foreground.text().strip() or None,default_hold_ms=self.hold.value())
+            c['output'].update(enabled=self.enabled.isChecked(),foreground_title=self.foreground.text().strip() or None,default_hold_ms=self.hold.value())
             registry(c['commands'],c['output']['default_hold_ms'])
             tmp=self.path.with_suffix(self.path.suffix+'.tmp');tmp.write_text(json.dumps(c,indent=2,ensure_ascii=False)+'\n',encoding='utf-8');tmp.replace(self.path)
             self.config=c;self.wake_title.setText(c['wake_word'].upper());self.status.setText('Configuration saved' if not self.thread else 'Saved — restart to apply');return True

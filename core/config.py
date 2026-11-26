@@ -55,3 +55,9 @@ def registry(commands, default_hold=50):
 def load(path):
     data = json.loads(Path(path).read_text(encoding='utf-8'))
     return data, registry(data['commands'], data['output'].get('default_hold_ms', 50))
+
+def output_enabled(config, override=None):
+    value = config['output'].get('enabled', False) if override is None else override
+    if type(value) is not bool:
+        raise ValueError('output.enabled must be a JSON boolean')
+    return value

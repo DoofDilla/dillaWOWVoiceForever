@@ -22,3 +22,12 @@ class ConfigTests(unittest.TestCase):
         for step in ({'text':''},{'text':'a\nb'},{'text':'a','key':'b'}):
             with self.assertRaises(ValueError):
                 registry({'example':{'sequence':[step]}})
+
+    def test_output_enabled(self):
+        from core.config import output_enabled
+        self.assertFalse(output_enabled({'output':{}}))
+        self.assertTrue(output_enabled({'output':{'enabled':True}}))
+        self.assertFalse(output_enabled({'output':{'enabled':True}},False))
+        self.assertTrue(output_enabled({'output':{'enabled':False}},True))
+        with self.assertRaises(ValueError):
+            output_enabled({'output':{'enabled':'false'}})

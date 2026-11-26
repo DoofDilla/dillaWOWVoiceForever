@@ -11,7 +11,7 @@ from datetime import datetime
 import pvporcupine
 import sounddevice as sd
 from vosk import SetLogLevel
-from core.config import load
+from core.config import load, output_enabled
 from core.audio import beep
 from core.recognition import get_model, make_recognizer, unambiguous, MODEL_NAME
 from core.dispatcher import Dispatcher, make_backend
@@ -31,6 +31,7 @@ def run_engine(args, stop=None, emit=None, event=None, meter=None):
     def notify(kind, **data):
         if event: event(kind, data)
     config, commands = load(args.config)
+    args.enable_output = output_enabled(config, args.enable_output)
     for key in ('device','sensitivity'):
         if getattr(args,key) is None:
             setattr(args,key,config[key])
