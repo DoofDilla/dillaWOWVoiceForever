@@ -1,4 +1,6 @@
 import argparse
+import math
+from collections import deque
 import json
 import queue
 import struct
@@ -28,6 +30,8 @@ def main():
     p.add_argument('--mode',choices=['normal','lowlatency','fast'])
     p.add_argument('--silence-ms',type=int)
     p.add_argument('--stable-ms',type=int)
+    p.add_argument('--pre-roll-ms',type=int)
+    p.add_argument('--wake-beep',action='store_true')
     p.add_argument('--free',action='store_true')
     p.add_argument('--no-beep',action='store_true')
     p.add_argument('--enable-output',action='store_true')
@@ -45,11 +49,16 @@ def main():
             setattr(args,key,config['recognition'][key])
     if not 0 <= args.sensitivity <= 1 or args.timeout <= 0 or args.silence_ms <= 0 or args.stable_ms < 0 or args.mode not in ('normal','lowlatency','fast'):
         p.error('Invalid recognition settings')
+    if args.pre_roll_ms is None:
+        args.pre_roll_ms = config['recognition'].get('pre_roll_ms',256)
+    if not 0 <= args.pre_roll_ms <= 1000:
+        p.error('Pre-roll must be between 0 and 1000 ms')
     sounds = config.get('beep',True) and not args.no_beep
     wake_word = config['wake_word']
     SetLogLevel(-1)
     model = get_model(args.model)
     engine = pvporcupine.create(keywords=[wake_word],sensitivities=[args.sensitivity])
+    pre_roll = deque(maxlen=math.ceil(args.pre_roll_ms * engine.sample_rate / (1000 * engine.frame_length)))
     dispatcher = None
     audio = queue.Queue(maxsize=64)
     dropped = wakes = matches = rejected = timeouts = 0
@@ -88,6 +97,7 @@ def main():
             timeouts += 1
             log('TIMEOUT: no command recognized')
         recognizer = None
+        pre_roll.clear()
         partial = ''
         log(f'Waiting for {wake_word}...')
 
@@ -111,14 +121,19 @@ def main():
                         ready = fresh()
                     continue
                 if recognizer is None:
+                    pre_roll.append(frame)
                     pcm = struct.unpack(f'<{engine.frame_length}h',frame)
                     if engine.process(pcm)>=0:
                         wakes += 1
                         activated = captured
                         recognizer = ready
                         partial_since = captured
-                        log(f'{wake_word.upper()} detected! (#{wakes}) Speak now.')
-                        beep(sounds)
+                        log(f'{wake_word.upper()} detected! (#{wakes}) | pre-roll: {len(pre_roll)*engine.frame_length*1000/engine.sample_rate:.0f} ms')
+                        if pre_roll:
+                            recognizer.AcceptWaveform(b''.join(pre_roll))
+                        pre_roll.clear()
+                        if args.wake_beep or config.get('wake_beep',False):
+                            beep(sounds)
                     continue
                 if recognizer.AcceptWaveform(frame):
                     result = recognizer.Result()

@@ -12,7 +12,7 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-The first start downloads the small English Vosk model. Say "Jarvis", then a configured command.
+The first start downloads the small English Vosk model. Say "Jarvis open map" as one phrase, or pause after "Jarvis". A 256 ms audio pre-roll helps preserve the command onset. The activation beep is off by default; the success beep is unchanged. Use `--pre-roll-ms 0` for the old handoff, `--pre-roll-ms 384` for a longer buffer, or `--wake-beep` to restore the activation tone. The optional config keys are `recognition.pre_roll_ms` and top-level `wake_beep`. Continuous speech performance needs microphone testing.
 The default is dry run: no keys are sent. Edit config.json and restart.
 Use `python main.py --list-devices`, `--device 3`, `--mode normal|lowlatency|fast`, `--free`, or `--no-beep`.
 Use `--enable-output` explicitly to send keys. On Windows the foreground window title must contain the configured string. On Linux no reliable Gamescope foreground check is implemented; to enable output you must explicitly set foreground_title to null and use --enable-output. Only use this while the intended application is focused.
