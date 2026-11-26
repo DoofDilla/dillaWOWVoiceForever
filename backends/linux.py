@@ -2,7 +2,7 @@ from .base import InputBackend
 
 # Physical US keyboard layout; not a general Unicode input method.
 PLAIN = dict(zip('abcdefghijklmnopqrstuvwxyz0123456789','abcdefghijklmnopqrstuvwxyz0123456789'))
-PLAIN.update({' ':'space','-':'minus','=':'equal','[':'leftbrace',']':'rightbrace',';':'semicolon',"'":'apostrophe',',':'comma','.':'dot','/':'slash','\\\\':'backslash','`':'grave'})
+PLAIN.update({' ':'space','-':'minus','=':'equal','[':'leftbrace',']':'rightbrace',';':'semicolon',"'":'apostrophe',',':'comma','.':'dot','/':'slash','\\':'backslash','`':'grave'})
 SHIFTED = dict(zip('!@#$%^&*()_+{}:\"<>?|~',['1','2','3','4','5','6','7','8','9','0','minus','equal','leftbrace','rightbrace','semicolon','apostrophe','comma','dot','slash','backslash','grave']))
 SHIFTED.update({c.upper():c for c in 'abcdefghijklmnopqrstuvwxyz'})
 
