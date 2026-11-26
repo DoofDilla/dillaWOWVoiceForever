@@ -257,6 +257,23 @@ For ordinary desktop applications and testing, a binding can execute multiple st
 
 Sequences are limited to 32 steps and 10 seconds of configured hold/wait time. Durations must be integers from 0 to 10000. Use either a single-key binding or a sequence. For WoW, stick to single keybindings rather than external multi-action automation.
 
+### Text output
+
+Add a literal text step in the GUI with **Add text**, or define it in JSON:
+
+```json
+"say thanks": {
+  "sequence": [
+    {"key": "enter"},
+    {"wait": 100},
+    {"text": "/thank"},
+    {"key": "enter"}
+  ]
+}
+```
+
+Text steps do not add Enter automatically. They accept 1–1024 printable characters (no line breaks or control characters). Windows uses Unicode SendInput; individual applications may not accept this input method. Linux types printable ASCII using a US physical keyboard layout; other layouts and Unicode are not supported by this backend. No clipboard modification. Linux text output and WoW compatibility require practical testing. Test in dry run first.
+
 ### Supported keys
 
 | Category | Names |

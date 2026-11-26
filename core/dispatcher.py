@@ -39,10 +39,15 @@ class Dispatcher:
                 continue
             try:
                 for step in self.registry[phrase]:
+                    if step[0] == 'text':
+                        self.backend.validate_text(step[1])
+                for step in self.registry[phrase]:
                     if self.stop.is_set() or not self.backend.allowed():
                         break
                     if step[0] == 'wait':
                         self.stop.wait(step[1]/1000)
+                    elif step[0] == 'text':
+                        self.backend.write_text(step[1], self.stop)
                     else:
                         self.backend.hotkey(step[1],step[2])
             except Exception as exc:

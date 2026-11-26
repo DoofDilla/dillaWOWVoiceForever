@@ -23,5 +23,11 @@ class InputBackend:
             for key in reversed(pressed):
                 self.release(key)
 
+    def validate_text(self, text):
+        raise NotImplementedError('Text output unavailable on this backend')
+
+    def write_text(self, text, stop):
+        raise NotImplementedError('Text output unavailable on this backend')
+
     def close(self):
         pass

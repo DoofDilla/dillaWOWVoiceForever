@@ -52,3 +52,20 @@ class WindowsBackend(InputBackend):
 
     def release(self,key):
         self._send(key,True)
+
+    def validate_text(self, text):
+        text.encode('utf-16-le')
+
+    def write_text(self, text, stop):
+        for char in text:
+            if stop.is_set() or not self.allowed():
+                raise RuntimeError('Text output interrupted')
+            raw = char.encode('utf-16-le')
+            events = []
+            for i in range(0,len(raw),2):
+                unit = int.from_bytes(raw[i:i+2],'little')
+                for flags in (4,6):
+                    events.append(INPUT(1,INPUTUNION(ki=KEYBDINPUT(0,unit,flags,0,0))))
+            batch = (INPUT*len(events))(*events)
+            if self.user.SendInput(len(batch),batch,c.sizeof(INPUT)) != len(batch):
+                raise OSError(c.get_last_error(),'Unicode SendInput failed')

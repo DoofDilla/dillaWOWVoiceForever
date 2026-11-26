@@ -28,13 +28,20 @@ def registry(commands, default_hold=50):
             raise ValueError(f'Invalid sequence: {name}')
         steps = []
         for step in sequence:
-            if 'key' in step and 'wait' not in step:
+            if sum(k in step for k in ('key','wait','text')) != 1:
+                raise ValueError(f'Invalid step: {step}')
+            if 'text' in step:
+                value = step['text']
+                if not isinstance(value,str) or not value or len(value)>1024 or any(not c.isprintable() for c in value):
+                    raise ValueError('Text must contain 1–1024 printable characters')
+                steps.append(('text',value))
+            elif 'key' in step and 'wait' not in step:
                 steps.append(('key', chord(step['key']), ms(step.get('hold', default_hold))))
             elif 'wait' in step and 'key' not in step:
                 steps.append(('wait', ms(step['wait'])))
             else:
                 raise ValueError(f'Invalid step: {step}')
-        if sum(s[-1] for s in steps) > 10000:
+        if sum(s[-1] for s in steps if s[0] != 'text') > 10000:
             raise ValueError(f'Sequence exceeds 10 seconds: {name}')
         for alias in [name] + binding.get('aliases', []):
             phrase = ' '.join(alias.lower().split())

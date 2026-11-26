@@ -65,23 +65,27 @@ class CommandDialog(W.QDialog):
         layout=W.QVBoxLayout(self); form=W.QFormLayout(); layout.addLayout(form)
         self.name=W.QLineEdit(name); self.aliases=W.QLineEdit(', '.join(binding.get('aliases',[])))
         form.addRow('Voice phrase',self.name); form.addRow('Aliases (comma separated)',self.aliases)
-        self.steps=W.QTableWidget(0,3); self.steps.setHorizontalHeaderLabels(['Action','Key / milliseconds','Hold (ms)'])
+        self.steps=W.QTableWidget(0,3); self.steps.setHorizontalHeaderLabels(['Action','Value','Hold (ms)'])
         self.steps.horizontalHeader().setSectionResizeMode(W.QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.steps)
         for step in binding.get('sequence',[binding]): self.add_step(step)
         row=W.QHBoxLayout(); layout.addLayout(row)
-        for title,fn in [('Add key',lambda:self.add_step({'key':'m'})),('Add wait',lambda:self.add_step({'wait':250})),('Remove',self.remove),('Up',lambda:self.move(-1)),('Down',lambda:self.move(1))]:
+        for title,fn in [('Add key',lambda:self.add_step({'key':'m'})),('Add wait',lambda:self.add_step({'wait':250})),('Add text',lambda:self.add_step({'text':'/thank'})),('Remove',self.remove),('Up',lambda:self.move(-1)),('Down',lambda:self.move(1))]:
             b=W.QPushButton(title); b.clicked.connect(fn); row.addWidget(b)
-        layout.addWidget(label('Click a key field and press the desired chord. Blank hold uses the configured default.','muted'))
+        layout.addWidget(label('Record chords in key fields; type literal strings in text fields. Blank key hold uses the default.','muted'))
         buttons=W.QDialogButtonBox(W.QDialogButtonBox.StandardButton.Ok|W.QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept_checked);buttons.rejected.connect(self.reject);layout.addWidget(buttons)
     def add_step(self,step):
         r=self.steps.rowCount();self.steps.insertRow(r)
-        kind='wait' if 'wait' in step else 'key'
-        self.steps.setItem(r,0,W.QTableWidgetItem(kind))
-        field=W.QLineEdit(str(step['wait'])) if kind=='wait' else KeyCapture(step['key'])
+        kind='text' if 'text' in step else 'wait' if 'wait' in step else 'key'
+        action=W.QTableWidgetItem(kind)
+        action.setFlags(action.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
+        self.steps.setItem(r,0,action)
+        field=KeyCapture(step['key']) if kind=='key' else W.QLineEdit(str(step[kind]))
         self.steps.setCellWidget(r,1,field)
-        self.steps.setItem(r,2,W.QTableWidgetItem(str(step.get('hold',''))))
+        hold=W.QTableWidgetItem(str(step.get('hold','')))
+        if kind!='key':hold.setFlags(hold.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
+        self.steps.setItem(r,2,hold)
         self.steps.setCurrentCell(r,0)
     def remove(self):
         if self.steps.currentRow()>=0:self.steps.removeRow(self.steps.currentRow())
@@ -89,6 +93,7 @@ class CommandDialog(W.QDialog):
         kind=self.steps.item(r,0).text()
         val=self.steps.cellWidget(r,1).text()
         if kind=='wait':return {'wait':int(val)}
+        if kind=='text':return {'text':val}
         step={'key':val};hold=self.steps.item(r,2).text()
         if hold.strip():step['hold']=int(hold)
         return step

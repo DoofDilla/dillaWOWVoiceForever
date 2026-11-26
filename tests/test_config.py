@@ -15,3 +15,10 @@ class ConfigTests(unittest.TestCase):
     def test_duplicate(self):
         with self.assertRaises(ValueError):
             registry({'a':{'key':'a','aliases':['b']},'b':{'key':'b'}})
+    def test_text_sequence(self):
+        r = registry({'thanks':{'sequence':[{'key':'enter'},{'text':'/thank ä'},{'key':'enter'}]}})
+        self.assertEqual(r['thanks'],[('key',['enter'],50),('text','/thank ä'),('key',['enter'],50)])
+    def test_invalid_text(self):
+        for step in ({'text':''},{'text':'a\nb'},{'text':'a','key':'b'}):
+            with self.assertRaises(ValueError):
+                registry({'example':{'sequence':[step]}})
