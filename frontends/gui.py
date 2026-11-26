@@ -123,7 +123,7 @@ class Window(W.QMainWindow):
         super().__init__()
         self.args=copy.copy(args);self.path=Path(args.config)
         self.config=json.loads(self.path.read_text(encoding='utf-8'))
-        self.thread=None;self.stop_event=None;self.level=(0,0);self.count=0;self.rejects=0;self.total=0.;self.closing=False
+        self.thread=None;self.stop_event=None;self.level=(0,0);self.count=0;self.rejects=0;self.total=0.;self.closing=False;self.restart_pending=False;self.stopping=False;self.applied_config=None
         self.bridge=Bridge();self.bridge.log.connect(self.append_log);self.bridge.event.connect(self.on_event);self.bridge.finished.connect(self.finished)
         self.setWindowTitle('dillaWOWVoiceForever');self.resize(1080,740);self.setMinimumSize(760,540)
         root=W.QWidget();self.setCentralWidget(root);outer=W.QVBoxLayout(root);outer.setContentsMargins(20,18,20,18);outer.setSpacing(15)
@@ -136,7 +136,7 @@ class Window(W.QMainWindow):
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
         self.dashboard();self.commands_page();self.recognition_page();self.audio_page();self.output_page();self.log_page()
         bottom=W.QHBoxLayout();outer.addLayout(bottom);self.status=label('Stopped','muted');bottom.addWidget(self.status);bottom.addStretch()
-        self.save_btn=W.QPushButton('Save configuration');self.save_btn.clicked.connect(self.save);bottom.addWidget(self.save_btn)
+        self.save_btn=W.QPushButton('Save & Apply');self.save_btn.clicked.connect(self.save_and_apply);bottom.addWidget(self.save_btn)
         self.start_btn=W.QPushButton('Start engine');self.start_btn.setObjectName('primary');self.start_btn.clicked.connect(self.toggle);bottom.addWidget(self.start_btn)
         self.nav.setCurrentRow(0)
         self.timer=QtCore.QTimer(self);self.timer.timeout.connect(self.update_meter);self.timer.start(80)
@@ -197,7 +197,7 @@ class Window(W.QMainWindow):
         self.silence=spin(1,10000,r['silence_ms']);f.addRow('Endpoint silence (ms)',self.silence)
         self.stable=spin(0,10000,r['stable_ms']);f.addRow('Partial stability (ms)',self.stable)
         self.preroll=spin(0,1000,r.get('pre_roll_ms',256));f.addRow('Audio pre-roll (ms)',self.preroll)
-        l.addWidget(label('Fast mode accepts stable partial matches. Changes apply when the engine restarts.','muted'));l.addStretch()
+        l.addWidget(label('Fast mode accepts stable partial matches. Save & Apply reloads the running engine automatically.','muted'));l.addStretch()
     def device_box(self,kind,current):
         c=W.QComboBox();c.addItem('System default',None)
         for i,d in enumerate(sd.query_devices()):
@@ -245,17 +245,46 @@ class Window(W.QMainWindow):
             c['output'].update(enabled=self.enabled.isChecked(),foreground_title=self.foreground.text().strip() or None,default_hold_ms=self.hold.value())
             registry(c['commands'],c['output']['default_hold_ms'])
             tmp=self.path.with_suffix(self.path.suffix+'.tmp');tmp.write_text(json.dumps(c,indent=2,ensure_ascii=False)+'\n',encoding='utf-8');tmp.replace(self.path)
-            self.config=c;self.wake_title.setText(c['wake_word'].upper());self.status.setText('Configuration saved' if not self.thread else 'Saved — restart to apply');return True
+            self.config=c;self.wake_title.setText(c['wake_word'].upper());self.status.setText('Configuration saved');return True
         except Exception as exc:W.QMessageBox.warning(self,'Cannot save configuration',str(exc));return False
+    def save_and_apply(self):
+        if self.stopping or self.closing:
+            return
+        if not self.save():
+            return
+        if self.thread and self.config != self.applied_config:
+            self.request_stop(restart=True)
+        elif self.thread:
+            self.status.setText('Configuration unchanged — listening')
+
+    def request_stop(self, restart=False):
+        if self.stopping:
+            return
+        self.restart_pending=restart
+        self.stopping=True
+        self.start_btn.setEnabled(False)
+        self.save_btn.setEnabled(False)
+        self.stack.setEnabled(False)
+        self.status.setText('Applying configuration…' if restart else 'Stopping…')
+        self.stop_event.set()
+
     def toggle(self):
+        if self.closing or self.stopping:
+            return
         if self.thread:
-            self.stop_event.set();self.start_btn.setEnabled(False);self.status.setText('Stopping…');return
-        if not self.save():return
+            self.request_stop();return
+        if self.save():self.start_engine()
+
+    def start_engine(self, preserve_stats=False):
+        self.applied_config=copy.deepcopy(self.config)
         args=copy.copy(self.args)
         for k in ['device','sensitivity','mode','timeout','silence_ms','stable_ms','pre_roll_ms']:setattr(args,k,None)
         args.wake_beep=False;args.no_beep=False;args.enable_output=self.enabled.isChecked()
-        self.stop_event=threading.Event();self.count=self.rejects=0;self.total=0.;self.level=(0,0)
-        self.start_btn.setText('Stop engine');self.status.setText('Starting…');self.enabled.setEnabled(False)
+        self.stop_event=threading.Event();self.level=(0,0)
+        if not preserve_stats:
+            self.count=self.rejects=0;self.total=0.
+            self.metrics[0].setText('0');self.metrics[1].setText('—');self.metrics[2].setText('0')
+        self.start_btn.setText('Stop engine');self.status.setText('Starting…')
         def work():
             try:run_engine(args,stop=self.stop_event,emit=self.bridge.log.emit,event=self.bridge.event.emit,meter=self.set_level)
             except Exception as exc:self.bridge.log.emit(f'ERROR: {exc}');self.bridge.event.emit('error',{'message':str(exc)})
@@ -265,6 +294,8 @@ class Window(W.QMainWindow):
     def update_meter(self):
         rms,peak=self.level;self.bar.setValue(int(min(100,rms*300)));self.peak.setText(f'Peak: {peak:.0%}')
     def on_event(self,kind,data):
+        if self.stopping and kind not in ('match','rejected','timeout','error'):
+            return
         if kind=='loading':self.state.setText('Loading speech model…')
         elif kind=='idle':self.state.setText('Waiting for wake word');self.status.setText('Listening')
         elif kind=='wake':self.state.setText('Listening for command…')
@@ -276,11 +307,17 @@ class Window(W.QMainWindow):
         self.metrics[0].setText(str(self.count));self.metrics[1].setText(f'{self.total/self.count:.2f}s' if self.count else '—');self.metrics[2].setText(str(self.rejects))
     def finished(self):
         if self.thread:self.thread.join()
-        self.thread=None;self.level=(0,0);self.start_btn.setText('Start engine');self.start_btn.setEnabled(True);self.enabled.setEnabled(True);self.status.setText('Stopped');self.state.setText('Ready to listen')
-        if self.closing:self.close()
+        restart=self.restart_pending and not self.closing
+        self.thread=None;self.level=(0,0);self.stopping=False;self.restart_pending=False
+        self.start_btn.setEnabled(True);self.save_btn.setEnabled(True);self.stack.setEnabled(True)
+        if self.closing:
+            self.close();return
+        if restart:
+            self.start_engine(preserve_stats=True);return
+        self.start_btn.setText('Start engine');self.status.setText('Stopped');self.state.setText('Ready to listen')
     def closeEvent(self,e):
         if self.thread:
-            self.closing=True;self.stop_event.set();e.ignore();self.status.setText('Stopping…');return
+            self.closing=True;self.restart_pending=False;self.request_stop();e.ignore();self.status.setText('Stopping…');return
         if self.tray:self.tray.hide()
         e.accept()
 

@@ -82,6 +82,8 @@ def run_engine(args, stop=None, emit=None, event=None, meter=None):
         elapsed = time.monotonic()-activated
         confidence = min((w['conf'] for w in data.get('result',[])),default=None)
         score = f'{confidence:.2f}' if confidence is not None else 'n/a'
+        if stop.is_set():
+            return
         if text in commands:
             matches += 1
             log(f'MATCH: {text!r} | confidence: {score} | wake-to-result: {elapsed:.2f}s | source: {source}')
@@ -122,6 +124,8 @@ def run_engine(args, stop=None, emit=None, event=None, meter=None):
                         finish(recognizer.FinalResult())
                         ready = fresh()
                     continue
+                if stop.is_set():
+                    break
                 if recognizer is None:
                     pre_roll.append(frame)
                     pcm = struct.unpack(f'<{engine.frame_length}h',frame)
