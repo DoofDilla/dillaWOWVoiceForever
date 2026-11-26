@@ -136,7 +136,7 @@ class Window(W.QMainWindow):
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
         self.dashboard();self.commands_page();self.recognition_page();self.audio_page();self.output_page();self.log_page()
         bottom=W.QHBoxLayout();outer.addLayout(bottom);self.status=label('Stopped','muted');bottom.addWidget(self.status);bottom.addStretch()
-        self.save_btn=W.QPushButton('Save & Apply');self.save_btn.clicked.connect(self.save_and_apply);bottom.addWidget(self.save_btn)
+        self.save_btn=W.QPushButton('Save && Apply');self.save_btn.clicked.connect(self.save_and_apply);bottom.addWidget(self.save_btn)
         self.start_btn=W.QPushButton('Start engine');self.start_btn.setObjectName('primary');self.start_btn.clicked.connect(self.toggle);bottom.addWidget(self.start_btn)
         self.nav.setCurrentRow(0)
         self.timer=QtCore.QTimer(self);self.timer.timeout.connect(self.update_meter);self.timer.start(80)
