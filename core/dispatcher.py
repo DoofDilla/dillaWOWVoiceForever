@@ -13,7 +13,8 @@ def make_backend(title):
     raise RuntimeError('Unsupported input platform')
 
 class Dispatcher:
-    def __init__(self, registry, backend=None):
+    def __init__(self, registry, backend=None, log=None):
+        self.log = log or (lambda message: print(message,flush=True))
         self.registry = registry
         self.backend = backend
         self.queue = queue.Queue(maxsize=1)
@@ -23,12 +24,12 @@ class Dispatcher:
 
     def submit(self, phrase):
         if self.backend is None:
-            print(f'DRY RUN: {phrase}: {self.registry[phrase]}',flush=True)
+            self.log(f'DRY RUN: {phrase}: {self.registry[phrase]}')
             return
         try:
             self.queue.put_nowait(phrase)
         except queue.Full:
-            print('Output busy; command discarded',flush=True)
+            self.log('Output busy; command discarded')
 
     def run(self):
         while not self.stop.is_set():
@@ -45,7 +46,7 @@ class Dispatcher:
                     else:
                         self.backend.hotkey(step[1],step[2])
             except Exception as exc:
-                print(f'Input error: {exc}',flush=True)
+                self.log(f'Input error: {exc}')
 
     def close(self):
         self.stop.set()

@@ -23,6 +23,17 @@ A lightweight Python application that combines local wake-word detection with co
 - [Troubleshooting](#troubleshooting)
 - [Architecture and development](#architecture-and-development)
 
+## Graphical interface
+
+Install the optional Qt frontend:
+
+```shell
+python -m pip install -r requirements-gui.txt
+python main.py --gui
+```
+
+The GUI and console share the same recognition engine. The GUI provides a dashboard, command/sequence editor, recognition and audio settings, live log, and a system tray where supported. Save settings and restart the engine to apply changes. Keyboard output is opt-in per session. GUI settings take precedence over CLI recognition overrides when starting from the dashboard. The existing console commands remain available without Qt. Linux GUI and Steam Deck remain experimental.
+
 ## Features
 
 - **Always-on wake word:** Jarvis, using Porcupine 1.9.5 without an AccessKey.
@@ -475,7 +486,8 @@ python -m unittest discover -s tests
 | Continuous wake-word + command speech | Tested on Windows |
 | Configurable native key output | Implemented |
 | Linux / Steam Deck input | Experimental |
-| GUI, push-to-talk, config hot reload | Not implemented |
+| Qt GUI | Implemented; platform testing pending |
+| Push-to-talk, config hot reload | Not implemented |
 
 ### Dependencies and acknowledgements
 
