@@ -1,0 +1,51 @@
+{
+  "wake_word": "jarvis",
+  "sensitivity": 0.6,
+  "device": null,
+  "beep": true,
+  "recognition": {
+    "mode": "normal",
+    "timeout": 3,
+    "silence_ms": 300,
+    "stable_ms": 200
+  },
+  "output": {
+    "foreground_title": "World of Warcraft",
+    "default_hold_ms": 50
+  },
+  "commands": {
+    "open map": {
+      "key": "m"
+    },
+    "close map": {
+      "key": "m"
+    },
+    "inventory": {
+      "key": "b",
+      "aliases": [
+        "open bags"
+      ]
+    },
+    "mount": {
+      "key": "shift+f5"
+    },
+    "pet attack": {
+      "key": "ctrl+1"
+    },
+    "pet follow": {
+      "key": "ctrl+2"
+    },
+    "pet stay": {
+      "key": "ctrl+3"
+    },
+    "feign death": {
+      "key": "shift+f6"
+    },
+    "target nearest": {
+      "key": "tab"
+    },
+    "auto run": {
+      "key": "numlock"
+    }
+  }
+}

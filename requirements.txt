@@ -1,0 +1,5 @@
+pvporcupine==1.9.5
+vosk
+sounddevice
+evdev; sys_platform == "linux"
+numpy
