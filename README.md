@@ -32,7 +32,7 @@ python -m pip install -r requirements-gui.txt
 python main.py --gui
 ```
 
-The GUI and console share the same recognition engine. The GUI provides a dashboard, command/sequence editor, recognition and audio settings, live log, and a system tray where supported. Use **Save & Apply** to save changes and automatically restart a running engine if settings changed. A stopped engine stays stopped. The dashboard statistics and log remain intact during automatic reload. Keyboard output is saved in output.enabled and shared with the console. GUI settings take precedence over CLI recognition overrides when starting from the dashboard. The existing console commands remain available without Qt. Linux GUI and Steam Deck remain experimental.
+The GUI and console share the same recognition engine. Recognition includes inline explanations, mode-aware timing controls, and Normal baseline / Fast balanced / Fast responsive tuning presets. Audio includes device and feedback explanations and a live microphone meter. Presets only change timing controls; use Save & Apply to activate them. The GUI provides a dashboard, command/sequence editor, recognition and audio settings, live log, and a system tray where supported. Use **Save & Apply** to save changes and automatically restart a running engine if settings changed. A stopped engine stays stopped. The dashboard statistics and log remain intact during automatic reload. Keyboard output is saved in output.enabled and shared with the console. GUI settings take precedence over CLI recognition overrides when starting from the dashboard. The existing console commands remain available without Qt. Linux GUI and Steam Deck remain experimental.
 
 ## Features
 

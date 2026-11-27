@@ -188,16 +188,85 @@ class Window(W.QMainWindow):
         r=self.table.currentRow()
         if r>=0 and len(self.config['commands'])>1:
             self.config['commands'].pop(self.table.item(r,0).text());self.refresh_commands()
+    def settings_scroll(self, page):
+        scroll=W.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(W.QFrame.Shape.NoFrame)
+        content=W.QWidget()
+        layout=W.QVBoxLayout(content)
+        layout.setContentsMargins(0,0,10,0)
+        layout.setSpacing(12)
+        scroll.setWidget(content)
+        self.pages[page].addWidget(scroll,1)
+        return layout
+
+    def setting(self, form, title, control, explanation):
+        field=W.QWidget()
+        layout=W.QVBoxLayout(field)
+        layout.setContentsMargins(0,0,0,8)
+        layout.setSpacing(5)
+        layout.addWidget(control)
+        hint=label(explanation,'muted')
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        control.setToolTip(explanation)
+        form.addRow(title,field)
+
     def recognition_page(self):
-        l=self.pages['Recognition'];f=W.QFormLayout();l.addLayout(f);r=self.config['recognition']
-        self.word=W.QComboBox();self.word.addItems(sorted(pvporcupine.KEYWORDS));self.word.setCurrentText(self.config['wake_word']);f.addRow('Wake word',self.word)
-        self.sensitivity=spin(0,1,self.config['sensitivity'],True);f.addRow('Sensitivity',self.sensitivity)
-        self.mode=W.QComboBox();self.mode.addItems(['normal','lowlatency','fast']);self.mode.setCurrentText(r['mode']);f.addRow('Recognition mode',self.mode)
-        self.timeout=spin(.1,60,r['timeout'],True);f.addRow('Command timeout (s)',self.timeout)
-        self.silence=spin(1,10000,r['silence_ms']);f.addRow('Endpoint silence (ms)',self.silence)
-        self.stable=spin(0,10000,r['stable_ms']);f.addRow('Partial stability (ms)',self.stable)
-        self.preroll=spin(0,1000,r.get('pre_roll_ms',256));f.addRow('Audio pre-roll (ms)',self.preroll)
-        l.addWidget(label('Fast mode accepts stable partial matches. Save & Apply reloads the running engine automatically.','muted'));l.addStretch()
+        l=self.settings_scroll('Recognition')
+        r=self.config['recognition']
+        l.addWidget(label('Tune response speed and recognition reliability. Use Save & Apply to test changes without closing the app.','muted'))
+        p=self.panel(l)
+        p.addWidget(label('Wake word detection'))
+        f=W.QFormLayout();f.setFieldGrowthPolicy(W.QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow);p.addLayout(f)
+        self.word=W.QComboBox();self.word.addItems(sorted(pvporcupine.KEYWORDS));self.word.setCurrentText(self.config['wake_word'])
+        self.setting(f,'Wake word',self.word,'The word that activates command recognition. All choices are built-in Porcupine models.')
+        self.sensitivity=spin(0,1,self.config['sensitivity'],True)
+        self.setting(f,'Sensitivity',self.sensitivity,'Default: 0.60. Increase if the wake word is missed; decrease if background speech triggers it. Higher is not always better.')
+        p=self.panel(l);p.addWidget(label('Recognition strategy'))
+        f=W.QFormLayout();f.setFieldGrowthPolicy(W.QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow);p.addLayout(f)
+        self.mode=W.QComboBox()
+        for title,value in [('Normal — final results','normal'),('Low latency — shorter endpoint','lowlatency'),('Fast — stable partial results','fast')]:
+            self.mode.addItem(title,value)
+        self.mode.setCurrentIndex(max(0,self.mode.findData(r['mode'])))
+        self.mode_help=label('','muted');self.mode_help.setWordWrap(True)
+        f.addRow('Mode',self.mode);f.addRow('',self.mode_help)
+        self.timeout=spin(.1,60,r['timeout'],True)
+        self.setting(f,'Command timeout',self.timeout,'Default: 3 s. Maximum listening window after the wake word. Increase for longer commands; reducing it can cut off speech.')
+        self.timeout.setSuffix(' s')
+        self.silence=spin(1,10000,r['silence_ms']);self.silence.setSuffix(' ms')
+        self.setting(f,'Endpoint silence',self.silence,'Default: 300 ms. Requested silence after speech before Vosk finalizes a result. Smaller values can finish earlier but may cut off pauses. Only effective in optimized modes when the installed Vosk exposes SetEndpointerDelays.')
+        self.stable=spin(0,10000,r['stable_ms']);self.stable.setSuffix(' ms')
+        self.setting(f,'Partial stability',self.stable,'Default: 200 ms. In Fast mode, an exact, unambiguous partial command must remain unchanged this long. Try 100–200 ms; lower values can cause premature matches.')
+        self.preroll=spin(0,1000,r.get('pre_roll_ms',256));self.preroll.setSuffix(' ms')
+        self.setting(f,'Audio pre-roll',self.preroll,'Default: 256 ms. Replays recent audio when the wake word fires, allowing “Jarvis open map” in one phrase. Try 384 ms if the first word is clipped; too much may include the wake word itself.')
+        self.mode.currentIndexChanged.connect(self.update_mode_help)
+        self.update_mode_help()
+        p=self.panel(l);p.addWidget(label('Tuning shortcuts'))
+        row=W.QHBoxLayout();p.addLayout(row)
+        for title,mode,stable in [('Normal baseline','normal',200),('Fast balanced','fast',200),('Fast responsive','fast',100)]:
+            b=W.QPushButton(title);b.clicked.connect(lambda _,m=mode,t=stable:self.timing_preset(m,t));row.addWidget(b)
+        hint=label('Presets set mode, timeout (3 s), endpoint silence (300 ms), stability and pre-roll (256 ms). They do not change wake word, sensitivity, devices or output. Save & Apply to activate. Test in dry run first.','muted');hint.setWordWrap(True);p.addWidget(hint)
+        l.addStretch()
+
+    def update_mode_help(self,*_):
+        mode=self.mode.currentData()
+        descriptions={
+            'normal':'Waits for a final Vosk result. Uses the default audio-stream latency and endpoint behavior.',
+            'lowlatency':'Requests low audio-stream latency and shorter endpoint delays. Still waits for final results.',
+            'fast':'Uses low audio-stream latency and, where supported, shorter endpoint delays. Also accepts stable exact partial matches unless they are a prefix of a longer configured command. Faster, but potentially less reliable.'
+        }
+        self.mode_help.setText(descriptions[mode])
+        self.silence.setEnabled(mode!='normal')
+        self.stable.setEnabled(mode=='fast')
+
+    def timing_preset(self,mode,stable):
+        self.mode.setCurrentIndex(self.mode.findData(mode))
+        self.timeout.setValue(3)
+        self.silence.setValue(300)
+        self.stable.setValue(stable)
+        self.preroll.setValue(256)
+
     def device_box(self,kind,current):
         c=W.QComboBox();c.addItem('System default',None)
         for i,d in enumerate(sd.query_devices()):
@@ -206,18 +275,35 @@ class Window(W.QMainWindow):
         if idx<0 and current is not None:c.addItem(f'Unavailable device {current}',current);idx=c.count()-1
         c.setCurrentIndex(max(0,idx));return c
     def audio_page(self):
-        l=self.pages['Audio'];f=W.QFormLayout();l.addLayout(f);a=self.config.get('audio',{})
-        self.mic=self.device_box('input',self.config['device']);self.speaker=self.device_box('output',a.get('output_device'));f.addRow('Microphone',self.mic);f.addRow('Feedback device',self.speaker)
-        self.sound=W.QCheckBox('Enable audio feedback');self.sound.setChecked(self.config.get('beep',True));f.addRow(self.sound)
-        self.wake_sound_on=W.QCheckBox('Play wake-word tone');self.wake_sound_on.setChecked(self.config.get('wake_beep',False));f.addRow(self.wake_sound_on)
-        self.volume=spin(0,1,a.get('volume',1.),True);f.addRow('Feedback volume',self.volume)
+        l=self.settings_scroll('Audio');a=self.config.get('audio',{})
+        p=self.panel(l);p.addWidget(label('Audio devices'))
+        f=W.QFormLayout();f.setFieldGrowthPolicy(W.QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow);p.addLayout(f)
+        self.mic=self.device_box('input',self.config['device'])
+        self.speaker=self.device_box('output',a.get('output_device'))
+        self.setting(f,'Microphone',self.mic,'Select the input device used by both speech engines. System default follows the audio system default at engine startup.')
+        self.setting(f,'Feedback device',self.speaker,'Select where wake and success tones play. Headphones help prevent feedback sounds entering the microphone.')
+        p=self.panel(l);p.addWidget(label('Feedback sounds'))
+        f=W.QFormLayout();f.setFieldGrowthPolicy(W.QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow);p.addLayout(f)
+        self.sound=W.QCheckBox('Enable audio feedback');self.sound.setChecked(self.config.get('beep',True))
+        self.setting(f,'Feedback',self.sound,'Master switch for recognition feedback. Does not affect microphone capture or keyboard output.')
+        self.wake_sound_on=W.QCheckBox('Play wake-word tone');self.wake_sound_on.setChecked(self.config.get('wake_beep',False))
+        self.setting(f,'Activation tone',self.wake_sound_on,'Off by default. Keep disabled for continuous phrases to avoid the tone overlapping the command.')
+        self.volume=spin(0,1,a.get('volume',1.),True)
+        self.setting(f,'Feedback volume',self.volume,'0.00 = silent, 1.00 = original sound amplitude. Does not change microphone sensitivity.')
         self.sound_fields={}
         for key,title in [('wake_sound','Wake WAV'),('success_sound','Success WAV')]:
-            field=W.QLineEdit(a.get(key) or '');self.sound_fields[key]=field;row=W.QHBoxLayout();row.addWidget(field);b=W.QPushButton('Browse');b.clicked.connect(lambda _,field=field:self.pick_sound(field));row.addWidget(b);f.addRow(title,row)
-        row=W.QHBoxLayout();l.addLayout(row)
+            field=W.QLineEdit(a.get(key) or '');self.sound_fields[key]=field
+            holder=W.QWidget();row=W.QHBoxLayout(holder);row.setContentsMargins(0,0,0,0)
+            row.addWidget(field);b=W.QPushButton('Browse');b.clicked.connect(lambda _,field=field:self.pick_sound(field));row.addWidget(b)
+            self.setting(f,title,holder,'Optional 16-bit PCM WAV file. Leave empty to use the built-in tone.')
+        row=W.QHBoxLayout();p.addLayout(row)
         for title,success in [('Test wake tone',False),('Test success tone',True)]:
             b=W.QPushButton(title);b.clicked.connect(lambda _,s=success:beep(True,s,self.audio_settings()));row.addWidget(b)
-        l.addWidget(label('Use the Dashboard meter while the engine is running to test the microphone. WAV files must be 16-bit PCM.','muted'));l.addStretch()
+        p=self.panel(l);p.addWidget(label('Microphone monitoring'))
+        self.audio_meter=W.QProgressBar();self.audio_meter.setRange(0,100);self.audio_meter.setTextVisible(False);p.addWidget(self.audio_meter)
+        self.audio_peak=label('Peak: 0%','muted');p.addWidget(self.audio_peak)
+        hint=label('The meter shows the active microphone while the engine is running. Save & Apply after selecting a different device. Recognition mode controls the input stream latency; tune this on the Recognition page.','muted');hint.setWordWrap(True);p.addWidget(hint)
+        l.addStretch()
     def pick_sound(self,field):
         name,_=W.QFileDialog.getOpenFileName(self,'Select feedback sound','','WAV (*.wav)')
         if name:field.setText(name)
@@ -241,7 +327,7 @@ class Window(W.QMainWindow):
     def save(self):
         try:
             c=copy.deepcopy(self.config);c.update(wake_word=self.word.currentText(),sensitivity=self.sensitivity.value(),device=self.mic.currentData(),beep=self.sound.isChecked(),wake_beep=self.wake_sound_on.isChecked(),audio=self.audio_settings())
-            c['recognition'].update(mode=self.mode.currentText(),timeout=self.timeout.value(),silence_ms=self.silence.value(),stable_ms=self.stable.value(),pre_roll_ms=self.preroll.value())
+            c['recognition'].update(mode=self.mode.currentData(),timeout=self.timeout.value(),silence_ms=self.silence.value(),stable_ms=self.stable.value(),pre_roll_ms=self.preroll.value())
             c['output'].update(enabled=self.enabled.isChecked(),foreground_title=self.foreground.text().strip() or None,default_hold_ms=self.hold.value())
             registry(c['commands'],c['output']['default_hold_ms'])
             tmp=self.path.with_suffix(self.path.suffix+'.tmp');tmp.write_text(json.dumps(c,indent=2,ensure_ascii=False)+'\n',encoding='utf-8');tmp.replace(self.path)
@@ -293,6 +379,7 @@ class Window(W.QMainWindow):
     def set_level(self,rms,peak):self.level=(rms,peak)
     def update_meter(self):
         rms,peak=self.level;self.bar.setValue(int(min(100,rms*300)));self.peak.setText(f'Peak: {peak:.0%}')
+        self.audio_meter.setValue(int(min(100,rms*300)));self.audio_peak.setText(f'Peak: {peak:.0%}')
     def on_event(self,kind,data):
         if self.stopping and kind not in ('match','rejected','timeout','error'):
             return
